@@ -1,17 +1,19 @@
 package com.opentraum.payment.domain.repository;
 
 import com.opentraum.payment.domain.entity.Payment;
-import org.springframework.data.r2dbc.repository.R2dbcRepository;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-public interface PaymentRepository extends R2dbcRepository<Payment, Long> {
+public interface PaymentRepository extends ReactiveCrudRepository<Payment, Long> {
+
+    Mono<Payment> findByMerchantUid(String merchantUid);
 
     Mono<Payment> findByReservationId(Long reservationId);
 
-    Flux<Payment> findByUserId(Long userId);
+    Mono<Payment> findByImpUid(String impUid);
 
-    Flux<Payment> findByTenantId(Long tenantId);
+    Flux<Payment> findByReservationIdAndStatus(Long reservationId, String status);
 
-    Flux<Payment> findByStatus(Payment.PaymentStatus status);
+    Flux<Payment> findByStatus(String status);
 }
