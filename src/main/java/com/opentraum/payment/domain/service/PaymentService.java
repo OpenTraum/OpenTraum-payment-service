@@ -30,7 +30,7 @@ public class PaymentService {
 
     // 결제 준비 (결제창 호출 전)
     public Mono<PaymentInitResponse> initiatePayment(Long reservationId, Integer amount,
-                                                      String itemName, Long tenantId) {
+                                                      String itemName, Long tenantId, Long userId) {
         String merchantUid = generateMerchantUid();
 
         Payment payment = Payment.builder()
@@ -38,6 +38,7 @@ public class PaymentService {
                 .merchantUid(merchantUid)
                 .amount(amount)
                 .tenantId(tenantId)
+                .userId(userId)
                 .status(PaymentStatus.PENDING.name())
                 .createdAt(LocalDateTime.now())
                 .build();

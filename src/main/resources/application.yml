@@ -15,6 +15,11 @@ spring:
       mode: always
       schema-locations: classpath:schema.sql
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
@@ -25,6 +30,19 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+# PortOne 결제 설정
+opentraum:
+  portone:
+    api-secret: ${PORTONE_API_SECRET:test-api-secret}
+    store-id: ${PORTONE_STORE_ID:test-store-id}
+
+# Swagger
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
 
 management:
   endpoints:

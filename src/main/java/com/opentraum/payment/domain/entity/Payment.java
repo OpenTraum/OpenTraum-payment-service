@@ -19,6 +19,8 @@ public class Payment {
 
     private Long reservationId;
 
+    private Long userId;
+
     private String merchantUid;
 
     private String impUid;
