@@ -8,8 +8,7 @@ permissions:
   contents: write
 
 jobs:
-  build-and-deploy:
-
+  build_image:
     runs-on: ubuntu-latest
     steps:
       - name: 코드 체크아웃
@@ -41,6 +40,16 @@ jobs:
           tags: ${{ secrets.HARBOR_REGISTRY }}/skala26a-cloud/opentraum-payment-service:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  update_manifest:
+    needs: build_image
+    runs-on: ubuntu-latest
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: k8s 매니페스트 이미지 태그 업데이트
         run: |
