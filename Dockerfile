@@ -6,7 +6,7 @@ RUN gradle dependencies --no-daemon || true
 COPY src ./src
 RUN gradle bootJar --no-daemon
 
-FROM eclipse-temurin:21-jre-alpine
+FROM bellsoft/liberica-openjre-alpine:21
 WORKDIR /app
 COPY --from=build /app/build/libs/*.jar app.jar
 
