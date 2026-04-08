@@ -25,7 +25,7 @@ spec:
         - name: harbor-secret
       containers:
         - name: payment-service
-          image: amdp-registry.skala-ai.com/skala26a-cloud/opentraum-payment-service:5b01c4e0c497004ffc969147dfb8a8ae206994cc
+          image: amdp-registry.skala-ai.com/skala26a-cloud/opentraum-payment-service:569cb4254665951c0db4292007c06cf7914f7640
           ports:
             - containerPort: 8085
               protocol: TCP
