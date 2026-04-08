@@ -3,15 +3,6 @@ name: Build Validation
 on:
   pull_request:
     branches: [main]
-    paths:
-      - 'src/**'
-      - 'gradle/**'
-      - 'build.gradle'
-      - 'settings.gradle'
-      - 'gradlew'
-      - 'Dockerfile'
-      - '.dockerignore'
-      - '.github/workflows/**'
 
 jobs:
   test:
