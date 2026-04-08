@@ -6,14 +6,14 @@ on:
 
 jobs:
   build-and-deploy:
-    if: github.actor != 'github-actions[bot]'
+
     runs-on: ubuntu-latest
     steps:
       - name: 코드 체크아웃
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GIT_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: QEMU 설정
         uses: docker/setup-qemu-action@v3
@@ -40,12 +40,10 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: k8s 매니페스트 이미지 태그 업데이트
-        env:
-          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
         run: |
-          git config --global user.email "github-actions@github.com"
-          git config --global user.name "GitHub Actions"
-          git remote set-url origin https://x-access-token:${GIT_TOKEN}@github.com/OpenTraum/OpenTraum-payment-service.git
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/OpenTraum/OpenTraum-payment-service.git
           git fetch origin main
           git checkout main
           sed -i "s|image: .*opentraum-payment-service.*|image: ${{ secrets.HARBOR_REGISTRY }}/skala26a-cloud/opentraum-payment-service:${{ github.sha }}|" k8s/deployment.yml
