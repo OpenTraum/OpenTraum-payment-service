@@ -39,6 +39,23 @@ public class Payment {
 
     private Long tenantId;
 
+    // 주문(reservation) 데이터 복제 (CDC 대비)
+    private String reservationStatus;
+
+    private Integer reservationQuantity;
+
+    private String reservationGrade;
+
+    // 이벤트(product) 데이터 복제 (CDC 대비)
+    private String eventTitle;
+
+    private String eventArtist;
+
+    private String eventVenue;
+
+    // 처리 시간 추적
+    private Long elapsedMs;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

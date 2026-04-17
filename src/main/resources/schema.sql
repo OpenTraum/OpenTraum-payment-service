@@ -1,4 +1,4 @@
--- 결제 테이블 (FairTicket 마이그레이션 + tenantId 추가)
+-- 결제 테이블 (FairTicket 마이그레이션 + tenantId 추가 + CDC 중복 데이터)
 CREATE TABLE IF NOT EXISTS payments (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     reservation_id BIGINT NOT NULL,
@@ -12,6 +12,16 @@ CREATE TABLE IF NOT EXISTS payments (
     expires_at TIMESTAMP,
     paid_at TIMESTAMP,
     tenant_id BIGINT NOT NULL,
+    -- 주문(reservation) 데이터 복제 (CDC 대비)
+    reservation_status VARCHAR(20),
+    reservation_quantity INT,
+    reservation_grade VARCHAR(50),
+    -- 이벤트(product) 데이터 복제 (CDC 대비)
+    event_title VARCHAR(255),
+    event_artist VARCHAR(255),
+    event_venue VARCHAR(255),
+    -- 처리 시간 추적
+    elapsed_ms BIGINT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
