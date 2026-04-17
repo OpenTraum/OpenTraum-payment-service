@@ -45,9 +45,8 @@ dependencies {
     // Kafka
     implementation 'org.springframework.kafka:spring-kafka'
 
-    // R2DBC PostgreSQL
-    runtimeOnly 'org.postgresql:r2dbc-postgresql'
-    runtimeOnly 'org.postgresql:postgresql'
+    // R2DBC MariaDB
+    runtimeOnly 'io.asyncer:r2dbc-mysql:1.1.0'
 
     // Lombok
     compileOnly 'org.projectlombok:lombok'

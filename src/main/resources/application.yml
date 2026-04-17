@@ -6,9 +6,9 @@ spring:
     name: opentraum-payment-service
 
   r2dbc:
-    url: r2dbc:postgresql://localhost:5432/opentraum_payment
+    url: r2dbc:mariadb://${DB_HOST:opentraum-mariadb}:${DB_PORT:3306}/opentraum_payment
     username: ${DB_USERNAME:opentraum}
-    password: ${DB_PASSWORD:opentraum}
+    password: ${DB_PASSWORD:opentraum123!}
 
   sql:
     init:
@@ -62,7 +62,7 @@ spring:
     activate:
       on-profile: dev
   r2dbc:
-    url: r2dbc:postgresql://localhost:5432/opentraum_payment
+    url: r2dbc:mariadb://localhost:3306/opentraum_payment
 
 ---
 spring:
@@ -70,4 +70,4 @@ spring:
     activate:
       on-profile: prod
   r2dbc:
-    url: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/opentraum_payment
+    url: r2dbc:mariadb://${DB_HOST}:${DB_PORT}/opentraum_payment
