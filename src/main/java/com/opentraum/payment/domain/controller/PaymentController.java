@@ -6,7 +6,7 @@ import com.opentraum.payment.domain.dto.WebhookRequest;
 import com.opentraum.payment.domain.entity.Payment;
 import com.opentraum.payment.domain.service.PaymentService;
 import com.opentraum.payment.domain.service.PaymentTimerService;
-import com.opentraum.payment.domain.service.PortOneClient;
+import com.opentraum.payment.domain.client.PortOneClient;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;

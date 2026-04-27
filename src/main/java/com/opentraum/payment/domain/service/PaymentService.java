@@ -1,5 +1,6 @@
 package com.opentraum.payment.domain.service;
 
+import com.opentraum.payment.domain.client.PortOneClient;
 import com.opentraum.payment.domain.constants.PaymentConstants;
 import com.opentraum.payment.domain.dto.PaymentInitResponse;
 import com.opentraum.payment.domain.dto.WebhookRequest;
@@ -144,7 +145,7 @@ public class PaymentService {
                     return Mono.just(payment);
                 })
                 // 2. PG사 금액 검증 (V2: merchantUid = PortOne paymentId)
-                .flatMap(payment -> portOneClient.verifyPayment(request.getMerchantUid())
+                .flatMap(payment -> portOneClient.verifyPayment(request.getMerchantUid(), payment.getAmount())
                         .flatMap(verification -> {
                             if (!payment.getAmount().equals(verification.getAmount())) {
                                 log.error("결제 금액 불일치: expected={}, actual={}",

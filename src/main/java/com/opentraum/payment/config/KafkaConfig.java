@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.*;
+import org.springframework.kafka.listener.ContainerProperties;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -23,6 +24,9 @@ public class KafkaConfig {
 
     @Value("${spring.kafka.consumer.group-id}")
     private String groupId;
+
+    @Value("${spring.kafka.listener.concurrency:3}")
+    private int listenerConcurrency;
 
     // Producer
     @Bean
@@ -56,6 +60,11 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, String> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
+        factory.setConcurrency(listenerConcurrency);
+        // SAGA consumer가 offset을 직접 제어해 exactly-once 경계를 보장한다.
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+        // Kafka 헤더의 W3C traceparent 복원 -> 현재 span에 바인딩 (Micrometer Tracing 연계)
+        factory.getContainerProperties().setObservationEnabled(true);
         return factory;
     }
 }

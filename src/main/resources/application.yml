@@ -1,5 +1,6 @@
 server:
   port: 8085
+  shutdown: graceful
 
 spring:
   application:
@@ -21,15 +22,23 @@ spring:
       port: ${REDIS_PORT:6379}
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:opentraum-kafka.kafka:9092}
     consumer:
-      group-id: payment-service
+      group-id: payment-saga-group
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    listener:
+      concurrency: 3
+      ack-mode: MANUAL_IMMEDIATE
+
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 # PortOne 결제 설정
 opentraum:
@@ -60,6 +69,18 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: 1.0
+    propagation:
+      type: w3c
+  otlp:
+    tracing:
+      endpoint: ${OTLP_TRACING_ENDPOINT:http://alloy.monitoring:4318/v1/traces}
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:payment-service},%X{traceId:-},%X{spanId:-}]"
 
 ---
 spring:

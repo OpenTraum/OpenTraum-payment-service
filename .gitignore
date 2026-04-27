@@ -42,3 +42,6 @@ out/
 ### Env ###
 .env
 .env.*
+
+### Local scripts ###
+docker-build.sh
