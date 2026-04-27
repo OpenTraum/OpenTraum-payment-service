@@ -50,7 +50,7 @@ spec:
                 topologyKey: kubernetes.io/hostname
       containers:
         - name: payment-service
-          image: amdp-registry.skala-ai.com/skala26a-cloud/opentraum-payment-service:latest
+          image: amdp-registry.skala-ai.com/skala26a-cloud/opentraum-payment-service:a6d4c19691705208fa21ee411ced367356b9c238
           imagePullPolicy: Always
           ports:
             - containerPort: 8085
