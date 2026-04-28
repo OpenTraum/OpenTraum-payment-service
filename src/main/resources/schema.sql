@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS payments (
     status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
     expires_at TIMESTAMP,
     paid_at TIMESTAMP,
-    tenant_id BIGINT NOT NULL,
+    tenant_id VARCHAR(64) NOT NULL DEFAULT 'default',
     -- 주문(reservation) 데이터 복제 (CDC 대비)
     reservation_status VARCHAR(20),
     reservation_quantity INT,

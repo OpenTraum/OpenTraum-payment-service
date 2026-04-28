@@ -51,15 +51,16 @@ public class PaymentSagaService {
             Long scheduleId,
             Integer amount,
             String trackType,
-            String impUid
+            String impUid,
+            String tenantId
     ) {
-        log.info("[SAGA] payment start: reservationId={}, sagaId={}, track={}, amount={}",
-                reservationId, sagaId, trackType, amount);
+        log.info("[SAGA] payment start: reservationId={}, sagaId={}, track={}, amount={}, tenantId={}",
+                reservationId, sagaId, trackType, amount, tenantId);
 
         // 1. PortOne 호출 (트랜잭션 밖)
         return portOneClient.verifyPayment(impUid)
-                .flatMap(result -> onSuccess(reservationId, sagaId, userId, amount, trackType, impUid, result))
-                .onErrorResume(err -> onFailure(reservationId, sagaId, userId, amount, impUid, err))
+                .flatMap(result -> onSuccess(reservationId, sagaId, userId, amount, trackType, impUid, tenantId, result))
+                .onErrorResume(err -> onFailure(reservationId, sagaId, userId, amount, impUid, tenantId, err))
                 .then();
     }
 
@@ -70,9 +71,10 @@ public class PaymentSagaService {
             Integer amount,
             String trackType,
             String impUid,
+            String tenantId,
             PortOneClient.PaymentVerificationResult verification
     ) {
-        Mono<Void> tx = upsertPayment(reservationId, userId, amount, impUid, PaymentStatus.COMPLETED)
+        Mono<Void> tx = upsertPayment(reservationId, userId, amount, impUid, tenantId, PaymentStatus.COMPLETED)
                 .flatMap(payment -> {
                     Map<String, Object> payload = new LinkedHashMap<>();
                     payload.put("payment_id", payment.getId());
@@ -96,7 +98,7 @@ public class PaymentSagaService {
                     // 트랜잭션(또는 outbox write) 자체가 실패한 상황 -> Failed 쪽으로도 시도
                     log.error("[SAGA] PaymentCompleted 기록 실패, PaymentFailed로 전환: reservationId={}, err={}",
                             reservationId, err.getMessage());
-                    return onFailure(reservationId, sagaId, userId, amount, impUid, err);
+                    return onFailure(reservationId, sagaId, userId, amount, impUid, tenantId, err);
                 });
     }
 
@@ -106,13 +108,14 @@ public class PaymentSagaService {
             Long userId,
             Integer amount,
             String impUid,
+            String tenantId,
             Throwable err
     ) {
         String reason = classifyFailure(err);
         log.warn("[SAGA] PaymentFailed: reservationId={}, sagaId={}, reason={}, err={}",
                 reservationId, sagaId, reason, err.getMessage());
 
-        Mono<Void> tx = upsertPayment(reservationId, userId, amount, impUid, PaymentStatus.FAILED)
+        Mono<Void> tx = upsertPayment(reservationId, userId, amount, impUid, tenantId, PaymentStatus.FAILED)
                 .flatMap(payment -> {
                     Map<String, Object> payload = new LinkedHashMap<>();
                     payload.put("payment_id", null);
@@ -144,14 +147,19 @@ public class PaymentSagaService {
             Long userId,
             Integer amount,
             String impUid,
+            String tenantId,
             PaymentStatus status
     ) {
         LocalDateTime now = LocalDateTime.now();
+        String effectiveTenantId = tenantId != null ? tenantId : "default";
         return paymentRepository.findByReservationId(reservationId)
                 .flatMap(existing -> {
                     existing.setStatus(status.name());
                     existing.setImpUid(impUid);
                     existing.setUpdatedAt(now);
+                    if (existing.getTenantId() == null || "default".equals(existing.getTenantId())) {
+                        existing.setTenantId(effectiveTenantId);
+                    }
                     if (status == PaymentStatus.COMPLETED) {
                         existing.setPaidAt(now);
                     }
@@ -165,7 +173,7 @@ public class PaymentSagaService {
                             .impUid(impUid)
                             .merchantUid(impUid != null ? impUid : "SAGA_" + reservationId)
                             .status(status.name())
-                            .tenantId(0L)
+                            .tenantId(effectiveTenantId)
                             .paidAt(status == PaymentStatus.COMPLETED ? now : null)
                             .createdAt(now)
                             .updatedAt(now)

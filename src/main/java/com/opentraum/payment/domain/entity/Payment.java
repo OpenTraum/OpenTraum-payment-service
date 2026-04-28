@@ -37,7 +37,7 @@ public class Payment {
 
     private LocalDateTime paidAt;
 
-    private Long tenantId;
+    private String tenantId;
 
     // 주문(reservation) 데이터 복제 (CDC 대비)
     private String reservationStatus;

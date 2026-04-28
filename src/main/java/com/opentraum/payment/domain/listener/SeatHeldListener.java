@@ -100,6 +100,8 @@ public class SeatHeldListener {
         Integer amount = intOrNull(node, "amount");
         String trackType = textOrDefault(node, "track_type", "LIVE");
         String impUid = textOrDefault(node, "imp_uid", "saga-" + reservationId);
+        // event-service의 SeatSagaService.publishSeatHeld가 schedule.tenant_id를 자동 머지함
+        String tenantId = textOrNull(node, "tenant_id");
 
         return paymentSagaService.process(
                         reservationId,
@@ -108,7 +110,8 @@ public class SeatHeldListener {
                         scheduleId,
                         amount,
                         trackType,
-                        impUid)
+                        impUid,
+                        tenantId)
                 .then(idempotencyService.markProcessed(eventId, CONSUMER_GROUP));
     }
 
