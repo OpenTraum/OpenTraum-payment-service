@@ -2,8 +2,10 @@ package com.opentraum.payment.domain.controller;
 
 import com.opentraum.payment.domain.dto.PaymentInitResponse;
 import com.opentraum.payment.domain.dto.PaymentTimerResponse;
+import com.opentraum.payment.domain.dto.RevenueResponse;
 import com.opentraum.payment.domain.dto.WebhookRequest;
 import com.opentraum.payment.domain.entity.Payment;
+import com.opentraum.payment.domain.repository.PaymentQueryRepository;
 import com.opentraum.payment.domain.service.PaymentService;
 import com.opentraum.payment.domain.service.PaymentTimerService;
 import com.opentraum.payment.domain.client.PortOneClient;
@@ -24,6 +26,7 @@ public class PaymentController {
 
     private final PaymentService paymentService;
     private final PaymentTimerService paymentTimerService;
+    private final PaymentQueryRepository paymentQueryRepository;
 
     @Operation(
             summary = "결제 준비",
@@ -38,7 +41,7 @@ public class PaymentController {
             @Parameter(description = "상품명", required = true)
             @RequestParam String itemName,
             @Parameter(description = "테넌트 ID", required = true)
-            @RequestHeader("X-Tenant-Id") Long tenantId,
+            @RequestHeader("X-Tenant-Id") String tenantId,
             @Parameter(description = "사용자 ID", required = true)
             @RequestHeader("X-User-Id") Long userId) {
         return paymentService.initiatePayment(reservationId, amount, itemName, tenantId, userId)
@@ -135,5 +138,23 @@ public class PaymentController {
                         .remainingSeconds(seconds)
                         .expired(false)
                         .build()));
+    }
+
+    @Operation(
+            summary = "ORGANIZER 매출 조회",
+            description = "X-Tenant-Id 헤더 기준 본인 tenant의 COMPLETED 결제 합산. 환불(REFUNDED)은 제외."
+    )
+    @GetMapping("/admin/revenue")
+    public Mono<ResponseEntity<RevenueResponse>> getOrganizerRevenue(
+            @RequestHeader("X-Tenant-Id") String tenantId) {
+        return Mono.zip(
+                        paymentQueryRepository.sumCompletedAmountByTenantId(tenantId),
+                        paymentQueryRepository.countCompletedByTenantId(tenantId))
+                .map(t -> RevenueResponse.builder()
+                        .tenantId(tenantId)
+                        .totalAmount(t.getT1())
+                        .completedCount(t.getT2())
+                        .build())
+                .map(ResponseEntity::ok);
     }
 }

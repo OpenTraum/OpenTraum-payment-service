@@ -54,7 +54,7 @@ public class PaymentService {
 
     // 결제 준비 (결제창 호출 전) — 주문/이벤트 데이터 복제 + 지연
     public Mono<PaymentInitResponse> initiatePayment(Long reservationId, Integer amount,
-                                                      String itemName, Long tenantId, Long userId) {
+                                                      String itemName, String tenantId, Long userId) {
         String merchantUid = generateMerchantUid();
         long startTime = System.currentTimeMillis();
 
