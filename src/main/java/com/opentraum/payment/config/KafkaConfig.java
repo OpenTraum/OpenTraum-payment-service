@@ -63,8 +63,6 @@ public class KafkaConfig {
         factory.setConcurrency(listenerConcurrency);
         // SAGA consumer가 offset을 직접 제어해 exactly-once 경계를 보장한다.
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
-        // Kafka 헤더의 W3C traceparent 복원 -> 현재 span에 바인딩 (Micrometer Tracing 연계)
-        factory.getContainerProperties().setObservationEnabled(true);
         return factory;
     }
 }
