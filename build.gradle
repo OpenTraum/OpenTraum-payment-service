@@ -42,10 +42,6 @@ dependencies {
     // Monitoring
     implementation 'io.micrometer:micrometer-registry-prometheus'
 
-    // Tracing (OpenTelemetry via Micrometer bridge)
-    implementation 'io.micrometer:micrometer-tracing-bridge-otel'
-    implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
-
     // Kafka
     implementation 'org.springframework.kafka:spring-kafka'
 

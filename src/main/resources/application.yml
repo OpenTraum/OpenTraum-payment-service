@@ -69,18 +69,6 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
-  tracing:
-    sampling:
-      probability: 1.0
-    propagation:
-      type: w3c
-  otlp:
-    tracing:
-      endpoint: ${OTLP_TRACING_ENDPOINT:http://alloy.monitoring:4318/v1/traces}
-
-logging:
-  pattern:
-    level: "%5p [${spring.application.name:payment-service},%X{traceId:-},%X{spanId:-}]"
 
 ---
 spring:
