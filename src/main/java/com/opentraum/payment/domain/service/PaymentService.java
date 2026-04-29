@@ -6,6 +6,7 @@ import com.opentraum.payment.domain.dto.PaymentInitResponse;
 import com.opentraum.payment.domain.dto.WebhookRequest;
 import com.opentraum.payment.domain.entity.Payment;
 import com.opentraum.payment.domain.entity.PaymentStatus;
+import com.opentraum.payment.domain.outbox.service.OutboxService;
 import com.opentraum.payment.domain.repository.PaymentRepository;
 import com.opentraum.payment.domain.repository.PaymentQueryRepository;
 import com.opentraum.payment.global.exception.BusinessException;
@@ -15,12 +16,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.reactive.TransactionalOperator;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -28,12 +31,20 @@ import java.util.UUID;
 @Service
 public class PaymentService {
 
+    private static final String AGGREGATE_TYPE = "payment";
+    private static final String EVENT_PAYMENT_COMPLETED = "PaymentCompleted";
+    private static final String EVENT_PAYMENT_FAILED = "PaymentFailed";
+    private static final String EVENT_REFUND_COMPLETED = "RefundCompleted";
+    private static final String EVENT_REFUND_FAILED = "RefundFailed";
+
     private final PaymentRepository paymentRepository;
     private final PaymentQueryRepository paymentQueryRepository;
     private final PortOneClient portOneClient;
     private final PaymentTimerService timerService;
     private final WebClient reservationWebClient;
     private final WebClient eventWebClient;
+    private final OutboxService outboxService;
+    private final TransactionalOperator transactionalOperator;
     private final long paymentDelayMs;
 
     public PaymentService(PaymentRepository paymentRepository,
@@ -42,6 +53,8 @@ public class PaymentService {
                           PaymentTimerService timerService,
                           @Qualifier("reservationWebClient") WebClient reservationWebClient,
                           @Qualifier("eventWebClient") WebClient eventWebClient,
+                          OutboxService outboxService,
+                          TransactionalOperator transactionalOperator,
                           @Value("${opentraum.payment.delay-ms:2000}") long paymentDelayMs) {
         this.paymentRepository = paymentRepository;
         this.paymentQueryRepository = paymentQueryRepository;
@@ -49,6 +62,8 @@ public class PaymentService {
         this.timerService = timerService;
         this.reservationWebClient = reservationWebClient;
         this.eventWebClient = eventWebClient;
+        this.outboxService = outboxService;
+        this.transactionalOperator = transactionalOperator;
         this.paymentDelayMs = paymentDelayMs;
     }
 
@@ -137,28 +152,40 @@ public class PaymentService {
     public Mono<Payment> completePayment(WebhookRequest request) {
         return paymentRepository.findByMerchantUid(request.getMerchantUid())
                 .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.PAYMENT_NOT_FOUND)))
-                // 1. 이미 완료된 결제 중복 처리 방지
                 .flatMap(payment -> {
                     if (PaymentStatus.COMPLETED.name().equals(payment.getStatus())) {
                         return Mono.error(new BusinessException(ErrorCode.PAYMENT_ALREADY_COMPLETED));
                     }
-                    return Mono.just(payment);
+                    return portOneClient.verifyPayment(request.getMerchantUid(), payment.getAmount())
+                            .doOnError(err -> log.warn("결제 검증 API 호출 실패: merchantUid={}, err={}",
+                                    request.getMerchantUid(), err.getMessage()))
+                            .flatMap(verification -> {
+                                if (!payment.getAmount().equals(verification.getAmount())) {
+                                    log.error("결제 금액 불일치: expected={}, actual={}",
+                                            payment.getAmount(), verification.getAmount());
+                                    BusinessException error = new BusinessException(ErrorCode.PAYMENT_AMOUNT_MISMATCH);
+                                    return persistFailedWithOutbox(payment, "PAYMENT_AMOUNT_MISMATCH")
+                                            .then(Mono.<Payment>error(error));
+                                }
+                                if (PaymentStatus.FAILED.equals(verification.getStatus())) {
+                                    BusinessException error = new BusinessException(
+                                            ErrorCode.PAYMENT_AMOUNT_MISMATCH,
+                                            "PortOne 결제 상태가 실패입니다.");
+                                    return persistFailedWithOutbox(payment, "PORTONE_PAYMENT_FAILED")
+                                            .then(Mono.<Payment>error(error));
+                                }
+                                if (!PaymentStatus.COMPLETED.equals(verification.getStatus())) {
+                                    return Mono.error(new BusinessException(
+                                            ErrorCode.INTERNAL_ERROR,
+                                            "PortOne 결제가 아직 완료되지 않았습니다."));
+                                }
+                                payment.setImpUid(request.getImpUid());
+                                payment.setStatus(PaymentStatus.COMPLETED.name());
+                                payment.setPaidAt(LocalDateTime.now());
+                                payment.setUpdatedAt(LocalDateTime.now());
+                                return persistCompletedWithOutbox(payment);
+                            });
                 })
-                // 2. PG사 금액 검증 (V2: merchantUid = PortOne paymentId)
-                .flatMap(payment -> portOneClient.verifyPayment(request.getMerchantUid(), payment.getAmount())
-                        .flatMap(verification -> {
-                            if (!payment.getAmount().equals(verification.getAmount())) {
-                                log.error("결제 금액 불일치: expected={}, actual={}",
-                                        payment.getAmount(), verification.getAmount());
-                                return Mono.error(new BusinessException(ErrorCode.PAYMENT_AMOUNT_MISMATCH));
-                            }
-                            payment.setImpUid(request.getImpUid());
-                            payment.setStatus(PaymentStatus.COMPLETED.name());
-                            payment.setPaidAt(LocalDateTime.now());
-                            payment.setUpdatedAt(LocalDateTime.now());
-                            return paymentRepository.save(payment);
-                        }))
-                // 3. 타이머 취소
                 .flatMap(payment -> timerService.cancelPaymentTimer(payment.getReservationId())
                         .thenReturn(payment))
                 .doOnSuccess(payment -> log.info("결제 완료: paymentId={}, merchantUid={}",
@@ -169,18 +196,31 @@ public class PaymentService {
     public Mono<PortOneClient.RefundResult> refundPayment(Long paymentId, String reason) {
         return paymentRepository.findById(paymentId)
                 .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.PAYMENT_NOT_FOUND)))
-                .flatMap(payment -> portOneClient.cancelPayment(
-                        payment.getMerchantUid(),
-                        payment.getAmount(),
-                        reason
-                ).flatMap(result -> {
-                    if (result.isSuccess()) {
-                        payment.setStatus(PaymentStatus.REFUNDED.name());
-                        payment.setUpdatedAt(LocalDateTime.now());
-                        return paymentRepository.save(payment).thenReturn(result);
+                .flatMap(payment -> {
+                    if (PaymentStatus.REFUNDED.name().equals(payment.getStatus())) {
+                        return Mono.just(PortOneClient.RefundResult.builder()
+                                .success(true)
+                                .message("ALREADY_REFUNDED")
+                                .build());
                     }
-                    return Mono.just(result);
-                }));
+                    return portOneClient.cancelPayment(
+                                    payment.getMerchantUid(),
+                                    payment.getAmount(),
+                                    reason
+                            )
+                            .flatMap(result -> {
+                                if (result.isSuccess()) {
+                                    payment.setStatus(PaymentStatus.REFUNDED.name());
+                                    payment.setUpdatedAt(LocalDateTime.now());
+                                    return persistRefundCompletedWithOutbox(payment, reason)
+                                            .thenReturn(result);
+                                }
+                                return publishRefundFailed(payment, result.getMessage())
+                                        .thenReturn(result);
+                            })
+                            .onErrorResume(err -> publishRefundFailed(payment, err.getMessage())
+                                    .then(Mono.<PortOneClient.RefundResult>error(err)));
+                });
     }
 
     // 결제 단건 조회
@@ -203,5 +243,78 @@ public class PaymentService {
     private String generateMerchantUid() {
         return "OT_" + System.currentTimeMillis() + "_" +
                 UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private Mono<Payment> persistCompletedWithOutbox(Payment payment) {
+        String sagaId = UUID.randomUUID().toString();
+        Mono<Payment> tx = paymentRepository.save(payment)
+                .flatMap(saved -> {
+                    Map<String, Object> payload = new LinkedHashMap<>();
+                    payload.put("payment_id", saved.getId());
+                    payload.put("amount", saved.getAmount());
+                    return outboxService.publish(
+                                    saved.getReservationId(),
+                                    AGGREGATE_TYPE,
+                                    EVENT_PAYMENT_COMPLETED,
+                                    sagaId,
+                                    payload)
+                            .thenReturn(saved);
+                });
+        return transactionalOperator.transactional(tx);
+    }
+
+    private Mono<Payment> persistFailedWithOutbox(Payment payment, String reason) {
+        String sagaId = UUID.randomUUID().toString();
+        payment.setStatus(PaymentStatus.FAILED.name());
+        payment.setUpdatedAt(LocalDateTime.now());
+        Mono<Payment> tx = paymentRepository.save(payment)
+                .flatMap(saved -> {
+                    Map<String, Object> payload = new LinkedHashMap<>();
+                    payload.put("payment_id", saved.getId());
+                    payload.put("amount", saved.getAmount());
+                    payload.put("reason", reason == null ? "PAYMENT_FAILED" : reason);
+                    return outboxService.publish(
+                                    saved.getReservationId(),
+                                    AGGREGATE_TYPE,
+                                    EVENT_PAYMENT_FAILED,
+                                    sagaId,
+                                    payload)
+                            .thenReturn(saved);
+                });
+        return transactionalOperator.transactional(tx);
+    }
+
+    private Mono<Payment> persistRefundCompletedWithOutbox(Payment payment, String reason) {
+        String sagaId = UUID.randomUUID().toString();
+        Mono<Payment> tx = paymentRepository.save(payment)
+                .flatMap(saved -> {
+                    Map<String, Object> payload = new LinkedHashMap<>();
+                    payload.put("payment_id", saved.getId());
+                    payload.put("amount", saved.getAmount());
+                    payload.put("reason", reason);
+                    return outboxService.publish(
+                                    saved.getReservationId(),
+                                    AGGREGATE_TYPE,
+                                    EVENT_REFUND_COMPLETED,
+                                    sagaId,
+                                    payload)
+                            .thenReturn(saved);
+                });
+        return transactionalOperator.transactional(tx);
+    }
+
+    private Mono<Void> publishRefundFailed(Payment payment, String reason) {
+        String sagaId = UUID.randomUUID().toString();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("payment_id", payment.getId());
+        payload.put("amount", payment.getAmount());
+        payload.put("reason", reason == null ? "REFUND_FAILED" : reason);
+        return outboxService.publish(
+                        payment.getReservationId(),
+                        AGGREGATE_TYPE,
+                        EVENT_REFUND_FAILED,
+                        sagaId,
+                        payload)
+                .then();
     }
 }
