@@ -60,7 +60,7 @@ spec:
               app.kubernetes.io/part-of: opentraum
       containers:
         - name: payment-service
-          image: amdp-registry.skala-ai.com/skala26a-cloud/opentraum-payment-service:78b93781f948223fd3909a2ce768a5495fc0a193
+          image: amdp-registry.skala-ai.com/skala26a-cloud/opentraum-payment-service:ed4a16fada914a1c87f40e0e2a4ce13cdafbeee3
           imagePullPolicy: Always
           ports:
             - containerPort: 8085
