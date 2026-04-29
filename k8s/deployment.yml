@@ -85,8 +85,6 @@ spec:
               value: "my-kafka-cluster-kafka-bootstrap.kafka:9092"
             - name: TZ
               value: "Asia/Seoul"
-            - name: OTLP_TRACING_ENDPOINT
-              value: "http://alloy-otlp.monitoring:4318/v1/traces"
             - name: SPRING_PROFILES_ACTIVE
               value: "prod,mock"
             - name: JAVA_OPTS

@@ -6,11 +6,8 @@ import com.opentraum.payment.domain.outbox.entity.OutboxEvent;
 import com.opentraum.payment.domain.outbox.repository.OutboxRepository;
 import com.opentraum.payment.global.exception.BusinessException;
 import com.opentraum.payment.global.exception.ErrorCode;
-import io.micrometer.tracing.Span;
-import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -40,7 +37,6 @@ public class OutboxService {
 
     private final OutboxRepository outboxRepository;
     private final ObjectMapper objectMapper;
-    private final ObjectProvider<Tracer> tracerProvider;
 
     /**
      * Outbox 레코드를 저장한다.
@@ -78,37 +74,21 @@ public class OutboxService {
             return Mono.error(new BusinessException(ErrorCode.INTERNAL_ERROR, "Outbox payload 직렬화 실패"));
         }
 
-        String traceId = currentTraceId();
-
         OutboxEvent event = OutboxEvent.builder()
                 .eventId(eventId)
                 .aggregateId(aggregateId)
                 .aggregateType(aggregateType)
                 .eventType(eventType)
                 .sagaId(sagaId)
-                .traceId(traceId)
                 .payload(json)
                 .occurredAt(occurredAt)
                 .build();
 
         return outboxRepository.save(event)
                 .doOnSuccess(saved -> log.info(
-                        "Outbox 기록: eventId={}, type={}, aggregate={}:{}, sagaId={}, traceId={}",
+                        "Outbox 기록: eventId={}, type={}, aggregate={}:{}, sagaId={}",
                         saved.getEventId(), saved.getEventType(),
-                        saved.getAggregateType(), saved.getAggregateId(), saved.getSagaId(),
-                        saved.getTraceId()
+                        saved.getAggregateType(), saved.getAggregateId(), saved.getSagaId()
                 ));
-    }
-
-    /**
-     * 현재 OpenTelemetry span의 traceId를 반환한다. Tracer Bean이 없거나 active span이 없으면 null.
-     */
-    private String currentTraceId() {
-        Tracer tracer = tracerProvider.getIfAvailable();
-        if (tracer == null) {
-            return null;
-        }
-        Span span = tracer.currentSpan();
-        return span != null ? span.context().traceId() : null;
     }
 }
