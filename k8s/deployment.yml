@@ -58,7 +58,7 @@ spec:
               app.kubernetes.io/part-of: opentraum
       containers:
         - name: payment-service
-          image: 881490135253.dkr.ecr.ap-northeast-2.amazonaws.com/skala3-cloud1-team8-opentraum-payment-service:16081706638ebc93608680e0791a7cab85e12529
+          image: 881490135253.dkr.ecr.ap-northeast-2.amazonaws.com/skala3-cloud1-team8-opentraum-payment-service:944ea4b37bdc1d617322c23c3a3ca44f9314045d
           imagePullPolicy: Always
           ports:
             - containerPort: 8085
